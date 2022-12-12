@@ -1,3 +1,6 @@
 [submodule "IOT-PBL"]
 	path = IOT-PBL
 	url = https://github.com/MKSonny/IOT-PBL
+[submodule "IOT-ANDROID"]
+	path = IOT-ANDROID
+	url = https://github.com/MKSonny/IOT-ANDROID.git
