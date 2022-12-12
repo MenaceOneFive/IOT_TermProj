@@ -17,9 +17,12 @@ SoftwareSerial DebugSerial(RXpin, TXpin);
 
 SNIPE SNIPE(ATSerial);
 
+void WaitForMessage(int node);
+
+void SendCommand();
+
 void RecvToCommandArray(const String &recv, String command[]);
 
-bool IsCommandValid(const String *command);
 
 void setup() {
     ATSerial.begin(115200);
@@ -61,39 +64,10 @@ void setup() {
 
 void loop() {
     DebugSerial.println("\n\n\nStart of Loop\n");
-    String ver = SNIPE.lora_recv();
-    delay(300);
-    String condition = ReadCommandDocument();
-
-    String recv = "1,S1,L1,H1,T1";
-    String command[5];
-
-    if (ver != AT_RX_TIMEOUT && ver.length() > 5) {
-        RecvToCommandArray(ver, command);
-        DebugSerial.println("\tReceived Commands: ");
-        for (int i = 0; i < 5; i++) {
-            DebugSerial.println("\t\t"+command[i]);
-        }
-        DebugSerial.println("\tcommand is :" + condition);
-        DebugSerial.println("\t\trecv success");
-        if (ver.length() > 0 && (IsCommandValid(command)))
-            SendDataToFirebase(1, command);
-        if (SNIPE.lora_send(condition)) {
-            DebugSerial.println("\tsend success");
-        } else {
-            DebugSerial.println("\tsend fail");
-            delay(500);
-        }
-    } else {
-        DebugSerial.println("\tReceive Fail : "+ver);
-        DebugSerial.println("\tcommand is :" + condition);
-    }
+    SendCommand();
     DebugSerial.println("\nEnd of Loop\n");
 }
 
-bool IsCommandValid(const String *command) {
-    return strcmp(AT_RX_TIMEOUT, command[0].c_str()) != 0;
-}
 
 void RecvToCommandArray(const String &recv, String command[]) {
     char *str = (char *) malloc(strlen(recv.c_str()) + 1);
@@ -106,3 +80,82 @@ void RecvToCommandArray(const String &recv, String command[]) {
     free(str);
 }
 
+
+void WaitForMessage(int node) {
+    int count = 0;
+    String command[5];
+//    String Node = node + "";
+    String Num(node);
+    String Node = Num;
+    DebugSerial.println("Waiting for Node "+Num);
+    do {
+        count++;
+        String ver = SNIPE.lora_recv();
+        if (ver != AT_RX_TIMEOUT && ver.length() > 5) {
+            RecvToCommandArray(ver, command);
+            DebugSerial.println("\tReceived Commands: ");
+            for (int i = 0; i < 5; i++) {
+                DebugSerial.println("\t\t" + command[i]);
+            }
+            if (Node != command[0]) {
+                if (SNIPE.lora_send(Node)) {
+                    DebugSerial.println("\tRequest has been sent : " + count);
+                }
+                continue;
+            }
+            DebugSerial.println("\t\t수신 양호");
+            SendDataToFirebase(node, command);
+            return;
+        } else {
+            DebugSerial.println("\tinvalid message : " + ver);
+            DebugSerial.println("\tresend request");
+            if (SNIPE.lora_send(Node)) {
+                DebugSerial.println("\tRequest has been sent : " + count);
+                continue;
+            }
+        }
+    } while (count < 3);
+}
+
+String prevCondition = "";
+int mode = 0;
+
+void SendCommand() {
+    switch (mode) {
+        case 1:
+            if (SNIPE.lora_send("1")) {
+                DebugSerial.println("\tsend success");
+            } else {
+                DebugSerial.println("\tsend fail");
+                delay(500);
+            }
+            WaitForMessage(1);
+            break;
+        case 2:
+            if (SNIPE.lora_send("2")) {
+                DebugSerial.println("\tsend success");
+            } else {
+                DebugSerial.println("\tsend fail");
+                delay(500);
+            }
+            WaitForMessage(2);
+            break;
+        case 0:
+            delay(2000);
+            bool successful;
+            String condition = ReadCommandDocument(successful);
+            if (successful) {
+                prevCondition = condition;
+                DebugSerial.println("세팅값 전송"+condition);
+                SNIPE.lora_send(condition.c_str());
+            }
+            if (SNIPE.lora_send(prevCondition)) {
+                DebugSerial.println("\tsend success");
+            } else {
+                DebugSerial.println("\tsend fail");
+            }
+            delay(500);
+            break;
+    }
+    mode = (mode + 1) % 3;
+}

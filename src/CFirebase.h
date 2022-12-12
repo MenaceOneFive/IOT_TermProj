@@ -16,7 +16,7 @@
 
 #define WIFI_SSID ""
 #define WIFI_PASSWORD ""
-#define API_KEY "AIzaSyAXkh1nVmOZ9rsVVZmcFGIFxTUJ7CEfRq0"
+#define API_KEY ""
 #define FIREBASE_PROJECT_ID "iot-project-acf10"
 #define USER_EMAIL "dlghdus122@gmail.com"
 #define USER_PASSWORD "test123"
@@ -104,16 +104,17 @@ void SendDataToFirebase(int node, const String recv[]) {
                 documentPath.c_str(),
                 content.raw())) {
             size_t wrote = strlen(fbdo.payload().c_str());
-            DebugSerial.println("\n\tok wrote "+ wrote);
+            DebugSerial.println("\n\tok wrote " + wrote);
         } else
-            DebugSerial.println("\n\t"+fbdo.errorReason());
+            DebugSerial.println("\n\t" + fbdo.errorReason());
     }
 }
 
-String ReadCommandDocument() {
+String ReadCommandDocument(bool &successful) {
     //Firestore에서 문서를 가져옴
     String documentPath = "command/command";
     Firebase.Firestore.getDocument(&fbdo, FIREBASE_PROJECT_ID, "", documentPath.c_str(), "");
+    DebugSerial.println(fbdo.payload());
 
     //가져온 문서에서 필요한 값(온도, 습도)를 추출
     FirebaseJson json;
@@ -122,14 +123,18 @@ String ReadCommandDocument() {
     FirebaseJsonData waterPump;
     json.get(fan, "fields/fan/stringValue", true);
     json.get(waterPump, "fields/waterpump/stringValue", true);
-    if (fan.success && waterPump.success) {
-    }
+
+    successful = (fan.success && waterPump.success);
+    if (!successful)
+        DebugSerial.println(fbdo.errorReason());
+
     String ret = "";
     ret += "T";
     ret += fan.stringValue;
     ret += ",";
     ret += "S";
     ret += waterPump.stringValue;
+    DebugSerial.println(ret);
     return ret;
 }
 
